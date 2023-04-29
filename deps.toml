@@ -1,0 +1,12 @@
+depsversion = "0.0.0"
+
+name = "piot/nimble-engine-client"
+version = "0.0.0"
+
+[[dependencies]]
+name = "piot/rectify-c"
+version = "*"
+
+[[dependencies]]
+name = "piot/nimble-client-c"
+version = "*"
