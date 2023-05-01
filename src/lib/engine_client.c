@@ -89,21 +89,27 @@ static void tickInGame(NimbleEngineClient* self)
 {
     uint8_t inputBuf[512];
     StepId authoritativeTickId;
+    size_t addedStepCount = 0;
 
-    if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
-        rectifyUpdate(&self->rectify);
-        return;
+    for (size_t i=0; i<30; ++i) {
+        if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
+            break;
+            return;
+        }
+
+        int octetCount = nimbleClientReadStep(&self->nimbleClient.client, inputBuf, 512, &authoritativeTickId);
+        if (octetCount < 0) {
+            CLOG_C_ERROR(&self->log, "could not read");
+        }
+
+        int errorCode = rectifyAddAuthoritativeStepRaw(&self->rectify, inputBuf, octetCount, authoritativeTickId);
+        if (errorCode < 0) {
+            CLOG_C_ERROR(&self->log, "could not go on, can not add authoritative steps")
+        }
+        addedStepCount++;
     }
 
-    int octetCount = nimbleClientReadStep(&self->nimbleClient.client, inputBuf, 512, &authoritativeTickId);
-    if (octetCount < 0) {
-        CLOG_C_ERROR(&self->log, " could not read");
-    }
-
-    int errorCode = rectifyAddAuthoritativeStepRaw(&self->rectify, inputBuf, octetCount, authoritativeTickId);
-    if (errorCode < 0) {
-        CLOG_C_ERROR(&self->log, "could not go on, can not add authoritative steps")
-    }
+    CLOG_C_VERBOSE(&self->log, "added %d authoritative steps in one tick", addedStepCount)
 
     rectifyUpdate(&self->rectify);
 }
