@@ -68,7 +68,10 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
         if (participantId == 0) {
             CLOG_ERROR("participantID zero is reserved")
         }
-        data.participants[i].participantIndex = participantId;
+        if (participantId > 32) {
+            CLOG_ERROR("too high participantID")
+        }
+        data.participants[i].participantId = participantId;
         data.participants[i].payload = input->participantInputs[i].input;
         data.participants[i].payloadCount = input->participantInputs[i].octetSize;
     }
