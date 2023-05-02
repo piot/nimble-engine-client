@@ -47,7 +47,8 @@ typedef struct NimbleEngineClientGameJoinOptions {
     size_t playerCount;
 } NimbleEngineClientGameJoinOptions;
 
-void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientGameJoinOptions options);
+void nimbleEngineClientRequestJoin(NimbleEngineClient* self,
+                                   NimbleEngineClientGameJoinOptions options);
 ```
 
 ### Update
