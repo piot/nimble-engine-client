@@ -18,6 +18,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     self->maxStepOctetSizeForSingleParticipant = setup.maximumSingleParticipantStepOctetCount;
     self->log = setup.log;
     self->maximumParticipantCount = setup.maximumParticipantCount;
+    self->maxTicksFromAuthoritative = setup.maxTicksFromAuthoritative;
 
     NimbleClientRealizeSettings realizeSetup;
     realizeSetup.memory = setup.memory;
@@ -49,10 +50,12 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
 {
     bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
     if (!allowedToAdd) {
+        CLOG_C_WARN(&self->log, "was not allowed to add steps")
         return false;
     }
 
     // TODO: Add more logic here
+
     return true;
 }
 
@@ -80,19 +83,22 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
         return octetCount;
     }
 
+    // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
+    // self->rectify.predicted.predictedSteps.stepsCount, self->nimbleClient.client.outSteps.stepsCount)
+
     rectifyAddPredictedStepRaw(&self->rectify, buf, octetCount, self->nimbleClient.client.outSteps.expectedWriteId);
 
     return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
                          octetCount);
 }
 
-static void tickInGame(NimbleEngineClient* self)
+static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
 {
     uint8_t inputBuf[512];
     StepId authoritativeTickId;
     size_t addedStepCount = 0;
 
-    for (size_t i=0; i<30; ++i) {
+    for (size_t i = 0; i < 30; ++i) {
         if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
             break;
             return;
@@ -115,15 +121,21 @@ static void tickInGame(NimbleEngineClient* self)
     rectifyUpdate(&self->rectify);
 }
 
-static void joinGameState(NimbleEngineClient* self)
+static void tickSynced(NimbleEngineClient* self)
 {
-    self->phase = NimbleEngineClientPhaseInGame;
+    tickIncomingAuthoritativeSteps(self);
+}
+
+static void receivedGameState(NimbleEngineClient* self)
+{
+    self->phase = NimbleEngineClientPhaseSynced;
 
     RectifySetup rectifySetup;
     rectifySetup.allocator = self->nimbleClient.settings.memory;
     rectifySetup.maxStepOctetSizeForSingleParticipant = self->maxStepOctetSizeForSingleParticipant;
     rectifySetup.maxPlayerCount = self->maximumParticipantCount;
     rectifySetup.log = self->log;
+    rectifySetup.maxTicksFromAuthoritative = self->maxTicksFromAuthoritative;
 
     const NimbleClientGameState* joinedGameState = &self->nimbleClient.client.joinedGameState;
     TransmuteState joinedTransmuteState = {joinedGameState->gameState, joinedGameState->gameStateOctetCount};
@@ -143,8 +155,8 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
     switch (self->phase) {
         case NimbleEngineClientPhaseWaitingForInitialGameState:
             switch (self->nimbleClient.state) {
-                case NimbleClientRealizeStateInGame:
-                    joinGameState(self);
+                case NimbleClientRealizeStateSynced:
+                    receivedGameState(self);
                 case NimbleClientRealizeStateInit:
                     break;
                 case NimbleClientRealizeStateReInit:
@@ -153,8 +165,8 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
                     break;
             }
             break;
-        case NimbleEngineClientPhaseInGame:
-            tickInGame(self);
+        case NimbleEngineClientPhaseSynced:
+            tickSynced(self);
             break;
     }
 }

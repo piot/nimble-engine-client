@@ -23,12 +23,13 @@ typedef struct NimbleEngineClientSetup {
     size_t maximumSingleParticipantStepOctetCount;
     size_t maximumParticipantCount;
     NimbleSerializeVersion applicationVersion;
+    size_t maxTicksFromAuthoritative;
     Clog log;
 } NimbleEngineClientSetup;
 
 typedef enum NimbleEngineClientPhase {
     NimbleEngineClientPhaseWaitingForInitialGameState,
-    NimbleEngineClientPhaseInGame,
+    NimbleEngineClientPhaseSynced,
 } NimbleEngineClientPhase;
 
 typedef struct NimbleEngineClient {
@@ -39,6 +40,7 @@ typedef struct NimbleEngineClient {
     TransmuteVm predicted;
     size_t maxStepOctetSizeForSingleParticipant;
     size_t maximumParticipantCount;
+    size_t maxTicksFromAuthoritative;
     Clog log;
 } NimbleEngineClient;
 
