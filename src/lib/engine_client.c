@@ -25,6 +25,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     realizeSetup.transport = setup.transport;
     realizeSetup.maximumSingleParticipantStepOctetCount = setup.maximumSingleParticipantStepOctetCount;
     realizeSetup.maximumNumberOfParticipants = setup.maximumParticipantCount;
+    realizeSetup.applicationVersion = setup.applicationVersion;
     realizeSetup.log = setup.log;
     nimbleClientRealizeInit(&self->nimbleClient, &realizeSetup);
 }

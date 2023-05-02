@@ -22,6 +22,7 @@ typedef struct NimbleEngineClientSetup {
     TransmuteVm predicted;
     size_t maximumSingleParticipantStepOctetCount;
     size_t maximumParticipantCount;
+    NimbleSerializeVersion applicationVersion;
     Clog log;
 } NimbleEngineClientSetup;
 
