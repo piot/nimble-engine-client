@@ -54,6 +54,11 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
         return false;
     }
 
+    bool rectifyWantsPredicted = rectifyMustAddPredictedStepThisTick(&self->rectify);
+    if (!rectifyWantsPredicted) {
+        return false;
+    }
+
     // TODO: Add more logic here
 
     return true;
@@ -89,7 +94,8 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
     // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
     // self->rectify.predicted.predictedSteps.stepsCount, self->nimbleClient.client.outSteps.stepsCount)
 
-    rectifyAddPredictedStepRaw(&self->rectify, buf, octetCount, self->nimbleClient.client.outSteps.expectedWriteId);
+
+    rectifyAddPredictedStep(&self->rectify, input, self->nimbleClient.client.outSteps.expectedWriteId);
 
     return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
                          octetCount);
