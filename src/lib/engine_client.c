@@ -28,6 +28,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     realizeSetup.maximumNumberOfParticipants = setup.maximumParticipantCount;
     realizeSetup.applicationVersion = setup.applicationVersion;
     realizeSetup.log = setup.log;
+    self->waitUntilAdjust = 0;
     nimbleClientRealizeInit(&self->nimbleClient, &realizeSetup);
 }
 
@@ -46,6 +47,47 @@ void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientG
     nimbleClientRealizeJoinGame(&self->nimbleClient, joinOptions);
 }
 
+static int calculateOptimalPredictionCount(const NimbleEngineClient* self)
+{
+    size_t predictCount = 1U;
+
+    if (self->waitUntilAdjust > 0) {
+        return 1;
+    }
+
+    int optimalPredictionTickCount = 0U;
+    bool hasLatencyStat = self->nimbleClient.client.latencyMsStat.avgIsSet;
+    int diffOptimalTickCount = 0U;
+
+    if (hasLatencyStat) {
+        int averageLatency = self->nimbleClient.client.latencyMsStat.avg;
+        optimalPredictionTickCount = (averageLatency / self->authoritative.constantTickDurationMs) + 1;
+        diffOptimalTickCount = self->nimbleClient.client.outSteps.stepsCount - optimalPredictionTickCount;
+    }
+
+    bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
+    if (hasBufferDeltaAverage) {
+        int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
+        if (bufferDeltaAverage < 2) {
+            if (diffOptimalTickCount < 0) {
+                CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
+                predictCount = 2;
+            } else if (diffOptimalTickCount > 3) {
+                CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
+                predictCount = 0;
+            }
+        }
+        if (bufferDeltaAverage > 5) {
+            CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
+            predictCount = 0;
+        }
+    }
+
+    //predictCount = 1;
+
+    return predictCount;
+}
+
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
 {
     bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
@@ -53,6 +95,10 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
         CLOG_C_WARN(&self->log, "was not allowed to add steps")
         return false;
     }
+
+    int optimalPredictionCount = calculateOptimalPredictionCount(self);
+    return optimalPredictionCount > 0;
+
 
     bool rectifyWantsPredicted = rectifyMustAddPredictedStepThisTick(&self->rectify);
     if (!rectifyWantsPredicted) {
@@ -64,7 +110,7 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
     return true;
 }
 
-int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
+static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, const TransmuteInput* input)
 {
     NimbleStepsOutSerializeLocalParticipants data;
 
@@ -94,11 +140,26 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
     // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
     // self->rectify.predicted.predictedSteps.stepsCount, self->nimbleClient.client.outSteps.stepsCount)
 
-
     rectifyAddPredictedStep(&self->rectify, input, self->nimbleClient.client.outSteps.expectedWriteId);
 
     return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
                          octetCount);
+}
+
+int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
+{
+    int optimalPredictionCount = calculateOptimalPredictionCount(self);
+
+    for (size_t i = 0U; i < optimalPredictionCount; ++i) {
+        int err = nimbleEngineClientAddPredictedInputHelper(self, input);
+        if (err < 0) {
+            return err;
+        }
+    }
+    if (optimalPredictionCount != 1) {
+        self->waitUntilAdjust = 10;
+    }
+    return 0;
 }
 
 static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
@@ -160,6 +221,10 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
     size_t targetFps;
 
     nimbleClientRealizeUpdate(&self->nimbleClient, monotonicTimeMsNow(), &targetFps);
+
+    if (self->waitUntilAdjust > 0) {
+        self->waitUntilAdjust--;
+    }
 
     switch (self->phase) {
         case NimbleEngineClientPhaseWaitingForInitialGameState:
