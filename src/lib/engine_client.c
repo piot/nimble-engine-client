@@ -70,20 +70,18 @@ static int calculateOptimalPredictionCount(const NimbleEngineClient* self)
         int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
         if (bufferDeltaAverage < 2) {
             if (diffOptimalTickCount < 0) {
-                CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
+                //CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
                 predictCount = 2;
             } else if (diffOptimalTickCount > 3) {
-                CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
+                //CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
                 predictCount = 0;
             }
         }
         if (bufferDeltaAverage > 5) {
-            CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
+            //CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
             predictCount = 0;
         }
     }
-
-    //predictCount = 1;
 
     return predictCount;
 }
