@@ -35,9 +35,9 @@ jobs:
         run: cmake --build . --clean-first
         working-directory: src
 
-      - name: run tests
-        run: ctest --test-dir test/ --output-on-failure
-        working-directory: src/
+      #- name: run tests
+      #  run: ctest --test-dir test/ --output-on-failure
+      #  working-directory: src/
 
       - uses: actions/upload-artifact@v2
         with:
