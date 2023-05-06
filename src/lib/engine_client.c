@@ -5,6 +5,9 @@
 #include "nimble-steps-serialize/out_serialize.h"
 #include <nimble-engine-client/client.h>
 
+/// Initializes an nimble engine client using the setup
+/// @param self
+/// @param setup
 void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup setup)
 {
     if (!transmuteVmVersionIsEqual(&setup.predicted.version, &setup.authoritative.version)) {
@@ -32,6 +35,9 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     nimbleClientRealizeInit(&self->nimbleClient, &realizeSetup);
 }
 
+/// Asks to join the local participants to the game
+/// @param self
+/// @param options
 void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientGameJoinOptions options)
 {
     NimbleSerializeGameJoinOptions joinOptions;
@@ -86,6 +92,9 @@ static int calculateOptimalPredictionCount(const NimbleEngineClient* self)
     return predictCount;
 }
 
+/// Checks if a predicted input must be added this tick
+/// @param self
+/// @return
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
 {
     bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
@@ -96,16 +105,6 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
 
     int optimalPredictionCount = calculateOptimalPredictionCount(self);
     return optimalPredictionCount > 0;
-
-
-    bool rectifyWantsPredicted = rectifyMustAddPredictedStepThisTick(&self->rectify);
-    if (!rectifyWantsPredicted) {
-        return false;
-    }
-
-    // TODO: Add more logic here
-
-    return true;
 }
 
 static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, const TransmuteInput* input)
@@ -144,6 +143,11 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
                          octetCount);
 }
 
+/// Adds predicted input to the nimble engine client.
+/// Only call this if nimbleEngineClientMustAddPredictedInput() returns true
+/// @param self
+/// @param input
+/// @return
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
     int optimalPredictionCount = calculateOptimalPredictionCount(self);
@@ -214,6 +218,8 @@ static void receivedGameState(NimbleEngineClient* self)
                 joinedGameState->stepId);
 }
 
+/// Update the nimble engine client
+/// @param self
 void nimbleEngineClientUpdate(NimbleEngineClient* self)
 {
     nimbleClientRealizeUpdate(&self->nimbleClient, monotonicTimeMsNow());
@@ -241,6 +247,11 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
     }
 }
 
+/// Gets the current authoritative and predicted states
+/// @param self
+/// @param authoritativeState
+/// @param predictedState
+/// @return
 int nimbleEngineClientGetGameStates(NimbleEngineClient* self, NimbleGameState* authoritativeState,
                                     NimbleGameState* predictedState)
 {
@@ -253,6 +264,10 @@ int nimbleEngineClientGetGameStates(NimbleEngineClient* self, NimbleGameState* a
     return 0;
 }
 
+/// Gets statistics about the connection and operation of the nimble engine client.
+/// @param self
+/// @param stats
+/// @return
 int nimbleEngineClientGetStats(const NimbleEngineClient* self, NimbleEngineClientStats* stats)
 {
     stats->authoritativeBufferDeltaStat = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
