@@ -216,9 +216,7 @@ static void receivedGameState(NimbleEngineClient* self)
 
 void nimbleEngineClientUpdate(NimbleEngineClient* self)
 {
-    size_t targetFps;
-
-    nimbleClientRealizeUpdate(&self->nimbleClient, monotonicTimeMsNow(), &targetFps);
+    nimbleClientRealizeUpdate(&self->nimbleClient, monotonicTimeMsNow());
 
     if (self->waitUntilAdjust > 0) {
         self->waitUntilAdjust--;
