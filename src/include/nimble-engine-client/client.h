@@ -66,7 +66,7 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self);
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self);
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input);
 
-int nimbleEngineClientGetGameStates(NimbleEngineClient* self, NimbleGameState* authoritativeState,
+int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameState* authoritativeState,
                                     NimbleGameState* predictedState);
 int nimbleEngineClientGetStats(const NimbleEngineClient* self, NimbleEngineClientStats* stats);
 

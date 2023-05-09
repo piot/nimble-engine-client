@@ -150,6 +150,18 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 /// @return
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
+    bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
+    if (hasBufferDeltaAverage &&  self->waitUntilAdjust == 0) {
+        int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
+        if (bufferDeltaAverage < -10) {
+            // We are too much behind, just skip ahead so there is less to predict
+            StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + 10;
+            CLOG_C_NOTICE(&self->log, "SKIP AHEAD:%08X", newBaseStepId)
+            nbsStepsReInit(&self->nimbleClient.client.outSteps, newBaseStepId);
+            nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
+            self->waitUntilAdjust = 10;
+        }
+    }
     int optimalPredictionCount = calculateOptimalPredictionCount(self);
 
     for (size_t i = 0U; i < optimalPredictionCount; ++i) {
@@ -252,7 +264,7 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
 /// @param authoritativeState
 /// @param predictedState
 /// @return
-int nimbleEngineClientGetGameStates(NimbleEngineClient* self, NimbleGameState* authoritativeState,
+int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameState* authoritativeState,
                                     NimbleGameState* predictedState)
 {
     authoritativeState->state = transmuteVmGetState(&self->rectify.authoritative.transmuteVm);
