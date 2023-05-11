@@ -52,6 +52,7 @@ target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/udp-transport
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/rectify-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/assent-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/seer-c/src/include)
+target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/lagometer-c/src/include)
 
 target_include_directories(nimble_engine_client PUBLIC ../include)
 
