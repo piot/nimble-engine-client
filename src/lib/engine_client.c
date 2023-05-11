@@ -53,7 +53,7 @@ void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientG
     nimbleClientRealizeJoinGame(&self->nimbleClient, joinOptions);
 }
 
-static int calculateOptimalPredictionCount(const NimbleEngineClient* self)
+static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* self)
 {
     size_t predictCount = 1U;
 
@@ -76,17 +76,27 @@ static int calculateOptimalPredictionCount(const NimbleEngineClient* self)
         int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
         if (bufferDeltaAverage < 2) {
             if (diffOptimalTickCount < 0) {
-                //CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
+                // CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
                 predictCount = 2;
             } else if (diffOptimalTickCount > 3) {
-                //CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
+                // CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
                 predictCount = 0;
             }
         }
         if (bufferDeltaAverage > 5) {
-            //CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
+            // CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
             predictCount = 0;
         }
+    }
+
+    // Check if it will fill up predicted buffer
+    const size_t maximumNumberOfPredictedStepsInBuffer = 30U;
+    int availableUntilFull = maximumNumberOfPredictedStepsInBuffer - self->rectify.predicted.predictedSteps.stepsCount;
+    if (availableUntilFull <= 0) {
+        return 0;
+    }
+    if (predictCount > availableUntilFull) {
+        predictCount = availableUntilFull;
     }
 
     return predictCount;
@@ -103,7 +113,7 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
         return false;
     }
 
-    int optimalPredictionCount = calculateOptimalPredictionCount(self);
+    int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
     return optimalPredictionCount > 0;
 }
 
@@ -151,7 +161,7 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
     bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
-    if (hasBufferDeltaAverage &&  self->waitUntilAdjust == 0) {
+    if (hasBufferDeltaAverage && self->waitUntilAdjust == 0) {
         int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
         if (bufferDeltaAverage < -10) {
             // We are too much behind, just skip ahead so there is less to predict
@@ -162,14 +172,17 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
             self->waitUntilAdjust = 10;
         }
     }
-    int optimalPredictionCount = calculateOptimalPredictionCount(self);
-
-    for (size_t i = 0U; i < optimalPredictionCount; ++i) {
-        int err = nimbleEngineClientAddPredictedInputHelper(self, input);
-        if (err < 0) {
-            return err;
+    int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
+    if (optimalPredictionCount)
+        for (size_t i = 0U; i < optimalPredictionCount; ++i) {
+            if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
+                break;
+            }
+            int err = nimbleEngineClientAddPredictedInputHelper(self, input);
+            if (err < 0) {
+                return err;
+            }
         }
-    }
     if (optimalPredictionCount != 1) {
         self->waitUntilAdjust = 10;
     }
