@@ -10,3 +10,7 @@ version = "*"
 [[dependencies]]
 name = "piot/nimble-client-c"
 version = "*"
+
+[[dependencies]]
+name = "piot/time-tick-c"
+version = "*"

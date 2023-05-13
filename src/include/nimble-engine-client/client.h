@@ -8,6 +8,7 @@
 #include <nimble-client/network_realizer.h>
 #include <rectify/rectify.h>
 #include <transmute/transmute.h>
+#include <time-tick/time_tick.h>
 
 typedef struct NimbleGameState {
     TransmuteState state;
@@ -43,7 +44,9 @@ typedef struct NimbleEngineClient {
     size_t maxTicksFromAuthoritative;
     bool isHostingLocally;
     int waitUntilAdjust;
+    TimeTick timeTick;
     Clog log;
+    bool shouldAddPredictedInput;
 } NimbleEngineClient;
 
 typedef struct NimbleEngineClientPlayerJoinOptions {
