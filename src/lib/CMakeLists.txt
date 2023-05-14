@@ -48,7 +48,7 @@ target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/flood-c/src/i
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/monotonic-time-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/ordered-datagram-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/stats-c/src/include)
-target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/udp-transport/src/include)
+target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/datagram-transport-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/rectify-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/assent-c/src/include)
 target_include_directories(nimble_engine_client PUBLIC ${DEPS}piot/seer-c/src/include)

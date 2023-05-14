@@ -16,7 +16,7 @@ typedef struct NimbleGameState {
 } NimbleGameState;
 
 typedef struct NimbleEngineClientSetup {
-    UdpTransportInOut transport;
+    DatagramTransport transport;
     struct ImprintAllocator* memory;
     struct ImprintAllocatorWithFree* blobMemory;
     TransmuteVm authoritative;
