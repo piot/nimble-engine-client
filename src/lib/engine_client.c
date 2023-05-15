@@ -14,7 +14,6 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
     for (size_t i = 0; i < 30; ++i) {
         if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
             break;
-            return;
         }
 
         int octetCount = nimbleClientReadStep(&self->nimbleClient.client, inputBuf, 512, &authoritativeTickId);
@@ -30,6 +29,15 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
     }
 
     CLOG_C_VERBOSE(&self->log, "added %d authoritative steps in one tick", addedStepCount)
+
+    if (addedStepCount > 0) {
+        self->ticksWithoutAuthoritativeSteps = 0;
+    } else {
+        self->ticksWithoutAuthoritativeSteps++;
+    }
+
+    bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps > 2;
+    statsHoldPositiveAdd(&self->detectedGapInAuthoritativeSteps, hasGapInAuthoritativeSteps);
 
     rectifyUpdate(&self->rectify);
 }
@@ -166,6 +174,8 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     self->maxTicksFromAuthoritative = setup.maxTicksFromAuthoritative;
     self->shouldAddPredictedInput = false;
 
+    statsHoldPositiveInit(&self->detectedGapInAuthoritativeSteps, 70U);
+
     NimbleClientRealizeSettings realizeSetup;
     realizeSetup.memory = setup.memory;
     realizeSetup.blobMemory = setup.blobMemory;
@@ -250,7 +260,7 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
     self->shouldAddPredictedInput = false;
-    
+
     bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
     if (hasBufferDeltaAverage && self->waitUntilAdjust == 0) {
         int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;

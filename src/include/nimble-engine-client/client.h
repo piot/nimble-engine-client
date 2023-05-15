@@ -9,6 +9,7 @@
 #include <rectify/rectify.h>
 #include <transmute/transmute.h>
 #include <time-tick/time_tick.h>
+#include <stats/hold_positive.h>
 
 typedef struct NimbleGameState {
     TransmuteState state;
@@ -47,6 +48,8 @@ typedef struct NimbleEngineClient {
     TimeTick timeTick;
     Clog log;
     bool shouldAddPredictedInput;
+    size_t ticksWithoutAuthoritativeSteps;
+    StatsHoldPositive detectedGapInAuthoritativeSteps;
 } NimbleEngineClient;
 
 typedef struct NimbleEngineClientPlayerJoinOptions {
