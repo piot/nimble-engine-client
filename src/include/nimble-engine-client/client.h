@@ -50,6 +50,7 @@ typedef struct NimbleEngineClient {
     bool shouldAddPredictedInput;
     size_t ticksWithoutAuthoritativeSteps;
     StatsHoldPositive detectedGapInAuthoritativeSteps;
+    StatsHoldPositive bigGapInAuthoritativeSteps;
 } NimbleEngineClient;
 
 typedef struct NimbleEngineClientPlayerJoinOptions {

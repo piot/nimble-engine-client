@@ -11,6 +11,8 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
     StepId authoritativeTickId;
     size_t addedStepCount = 0;
 
+    self->ticksWithoutAuthoritativeSteps++;
+
     for (size_t i = 0; i < 30; ++i) {
         if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
             break;
@@ -32,12 +34,12 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
 
     if (addedStepCount > 0) {
         self->ticksWithoutAuthoritativeSteps = 0;
-    } else {
-        self->ticksWithoutAuthoritativeSteps++;
     }
-
-    bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps > 2;
+    bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps >= 2;
     statsHoldPositiveAdd(&self->detectedGapInAuthoritativeSteps, hasGapInAuthoritativeSteps);
+
+    bool hasBigGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps >= 5;
+    statsHoldPositiveAdd(&self->bigGapInAuthoritativeSteps, hasBigGapInAuthoritativeSteps);
 
     rectifyUpdate(&self->rectify);
 }
@@ -173,8 +175,10 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     self->maximumParticipantCount = setup.maximumParticipantCount;
     self->maxTicksFromAuthoritative = setup.maxTicksFromAuthoritative;
     self->shouldAddPredictedInput = false;
+    self->ticksWithoutAuthoritativeSteps = 0;
 
-    statsHoldPositiveInit(&self->detectedGapInAuthoritativeSteps, 70U);
+    statsHoldPositiveInit(&self->detectedGapInAuthoritativeSteps, 20U);
+    statsHoldPositiveInit(&self->bigGapInAuthoritativeSteps, 20U);
 
     NimbleClientRealizeSettings realizeSetup;
     realizeSetup.memory = setup.memory;
