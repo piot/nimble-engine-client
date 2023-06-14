@@ -11,8 +11,6 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
     StepId authoritativeTickId;
     size_t addedStepCount = 0;
 
-    self->ticksWithoutAuthoritativeSteps++;
-
     for (size_t i = 0; i < 30; ++i) {
         if (self->nimbleClient.client.authoritativeStepsFromServer.stepsCount == 0) {
             break;
@@ -30,11 +28,14 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
         addedStepCount++;
     }
 
-    CLOG_C_VERBOSE(&self->log, "added %d authoritative steps in one tick", addedStepCount)
-
     if (addedStepCount > 0) {
         self->ticksWithoutAuthoritativeSteps = 0;
+    } else {
+        self->ticksWithoutAuthoritativeSteps++;
     }
+
+    CLOG_C_VERBOSE(&self->log, "added %d authoritative steps in one tick", addedStepCount)
+
     bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps >= 2;
     statsHoldPositiveAdd(&self->detectedGapInAuthoritativeSteps, hasGapInAuthoritativeSteps);
 
@@ -62,11 +63,12 @@ static void receivedGameState(NimbleEngineClient* self)
 
     const NimbleClientGameState* joinedGameState = &self->nimbleClient.client.joinedGameState;
     TransmuteState joinedTransmuteState = {joinedGameState->gameState, joinedGameState->gameStateOctetCount};
-    CLOG_C_DEBUG(&self->log, "Joined game state. octetCount: %zu step %04X", joinedGameState->gameStateOctetCount,
+    CLOG_C_DEBUG(&self->log, "Joined game state. octetCount: %zu step %08X", joinedGameState->gameStateOctetCount,
                  joinedGameState->stepId);
 
     rectifyInit(&self->rectify, self->authoritative, self->predicted, rectifySetup, joinedTransmuteState,
                 joinedGameState->stepId);
+    self->waitUntilAdjust = 50;
 }
 
 static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* self)
@@ -269,12 +271,13 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
     if (hasBufferDeltaAverage && self->waitUntilAdjust == 0) {
         int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
         if (bufferDeltaAverage < -10) {
-            // We are too much behind, just skip ahead so there is less to predict
+            // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
             StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + 10;
-            CLOG_C_NOTICE(&self->log, "SKIP AHEAD:%08X", newBaseStepId)
+            CLOG_C_NOTICE(&self->log, "SKIP AHEAD. Server says that we are %d behind, so we skip from %08X to %08X",
+                          bufferDeltaAverage, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
             nbsStepsReInit(&self->nimbleClient.client.outSteps, newBaseStepId);
             nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
-            self->waitUntilAdjust = 10;
+            self->waitUntilAdjust = 30;
         }
     }
     int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
@@ -289,7 +292,7 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
             }
         }
     if (optimalPredictionCount != 1) {
-        self->waitUntilAdjust = 10;
+        self->waitUntilAdjust = 30;
     }
     return 0;
 }
