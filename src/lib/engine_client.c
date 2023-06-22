@@ -34,7 +34,7 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
         self->ticksWithoutAuthoritativeSteps++;
     }
 
-    CLOG_C_VERBOSE(&self->log, "added %d authoritative steps in one tick", addedStepCount)
+    CLOG_C_VERBOSE(&self->log, "added %zu authoritative steps in one tick", addedStepCount)
 
     bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps >= 2;
     statsHoldPositiveAdd(&self->detectedGapInAuthoritativeSteps, hasGapInAuthoritativeSteps);
@@ -113,7 +113,7 @@ static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* sel
     if (availableUntilFull <= 0) {
         return 0;
     }
-    if (predictCount > availableUntilFull) {
+    if ((int)predictCount > availableUntilFull) {
         predictCount = availableUntilFull;
     }
 
@@ -148,6 +148,8 @@ static int nimbleEngineClientTick(void* _self)
                 case NimbleClientRealizeStateReInit:
                     break;
                 case NimbleClientRealizeStateCleared:
+                    break;
+                case NimbleClientRealizeStateDisconnected:
                     break;
             }
             break;
@@ -282,7 +284,7 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
     }
     int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
     if (optimalPredictionCount)
-        for (size_t i = 0U; i < optimalPredictionCount; ++i) {
+        for (int i = 0; i < optimalPredictionCount; ++i) {
             if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
                 break;
             }
