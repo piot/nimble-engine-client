@@ -43,7 +43,6 @@ typedef struct NimbleEngineClient {
     size_t maxStepOctetSizeForSingleParticipant;
     size_t maximumParticipantCount;
     size_t maxTicksFromAuthoritative;
-    bool isHostingLocally;
     int waitUntilAdjust;
     TimeTick timeTick;
     Clog log;

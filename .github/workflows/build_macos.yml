@@ -1,18 +1,12 @@
-name: build linux
+name: build mac os
 on: [push]
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-22.04
+    name: Build MacOS
+    runs-on: macos-12
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      - name: Install LLVM and Clang 16
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: '16.0.4'
-          env: true
 
       - name: Setup cmake
         uses: jwlawson/actions-setup-cmake@v1.11
@@ -33,11 +27,11 @@ jobs:
         working-directory: src/
 
       - name: build
-        run: cmake --build . --clean-first -- VERBOSE=1
+        run: cmake --build . --clean-first
         working-directory: src/
 
       - uses: actions/upload-artifact@v2
         with:
-          name: Nimble Engine Client Linux Library
+          name: Nimble Engine Client MacOS Library
           path: |
             src/lib/libnimble-engine-client.a
