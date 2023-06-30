@@ -18,7 +18,7 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
 
         int octetCount = nimbleClientReadStep(&self->nimbleClient.client, inputBuf, 512, &authoritativeTickId);
         if (octetCount < 0) {
-            CLOG_C_ERROR(&self->log, "could not read");
+            CLOG_C_ERROR(&self->log, "could not read")
         }
 
         int errorCode = rectifyAddAuthoritativeStepRaw(&self->rectify, inputBuf, (size_t) octetCount,
@@ -65,7 +65,7 @@ static void receivedGameState(NimbleEngineClient* self)
     const NimbleClientGameState* joinedGameState = &self->nimbleClient.client.joinedGameState;
     TransmuteState joinedTransmuteState = {joinedGameState->gameState, joinedGameState->gameStateOctetCount};
     CLOG_C_DEBUG(&self->log, "Joined game state. octetCount: %zu step %08X", joinedGameState->gameStateOctetCount,
-                 joinedGameState->stepId);
+                 joinedGameState->stepId)
 
     rectifyInit(&self->rectify, self->authoritative, self->predicted, rectifySetup, joinedTransmuteState,
                 joinedGameState->stepId);
