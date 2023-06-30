@@ -21,7 +21,8 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
             CLOG_C_ERROR(&self->log, "could not read");
         }
 
-        int errorCode = rectifyAddAuthoritativeStepRaw(&self->rectify, inputBuf, octetCount, authoritativeTickId);
+        int errorCode = rectifyAddAuthoritativeStepRaw(&self->rectify, inputBuf, (size_t) octetCount,
+                                                       authoritativeTickId);
         if (errorCode < 0) {
             CLOG_C_ERROR(&self->log, "could not go on, can not add authoritative steps")
         }
@@ -71,7 +72,7 @@ static void receivedGameState(NimbleEngineClient* self)
     self->waitUntilAdjust = 50;
 }
 
-static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* self)
+static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* self)
 {
     size_t predictCount = 1U;
 
@@ -79,14 +80,13 @@ static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* sel
         return 1;
     }
 
-    int optimalPredictionTickCount = 0U;
     bool hasLatencyStat = self->nimbleClient.client.latencyMsStat.avgIsSet;
-    int diffOptimalTickCount = 0U;
+    int diffOptimalTickCount = 0;
 
     if (hasLatencyStat) {
-        int averageLatency = self->nimbleClient.client.latencyMsStat.avg;
-        optimalPredictionTickCount = (averageLatency / self->authoritative.constantTickDurationMs) + 1;
-        diffOptimalTickCount = self->nimbleClient.client.outSteps.stepsCount - optimalPredictionTickCount;
+        size_t averageLatency = (size_t) self->nimbleClient.client.latencyMsStat.avg;
+        size_t optimalPredictionTickCount = (averageLatency / self->authoritative.constantTickDurationMs) + 1U;
+        diffOptimalTickCount = (int) self->nimbleClient.client.outSteps.stepsCount - (int) optimalPredictionTickCount;
     }
 
     bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
@@ -109,12 +109,13 @@ static int calculateOptimalPredictionCountThisTick(const NimbleEngineClient* sel
 
     // Check if it will fill up predicted buffer
     const size_t maximumNumberOfPredictedStepsInBuffer = 30U;
-    int availableUntilFull = maximumNumberOfPredictedStepsInBuffer - self->rectify.predicted.predictedSteps.stepsCount;
+    int availableUntilFull = (int) maximumNumberOfPredictedStepsInBuffer -
+                             (int) self->rectify.predicted.predictedSteps.stepsCount;
     if (availableUntilFull <= 0) {
         return 0;
     }
-    if ((int)predictCount > availableUntilFull) {
-        predictCount = availableUntilFull;
+    if (predictCount > (size_t) availableUntilFull) {
+        predictCount = (size_t) availableUntilFull;
     }
 
     return predictCount;
@@ -131,7 +132,7 @@ static int nimbleEngineClientTick(void* _self)
         return false;
     }
 
-    int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
+    size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
     self->shouldAddPredictedInput = optimalPredictionCount > 0;
 
     if (self->waitUntilAdjust > 0) {
@@ -143,12 +144,10 @@ static int nimbleEngineClientTick(void* _self)
             switch (self->nimbleClient.state) {
                 case NimbleClientRealizeStateSynced:
                     receivedGameState(self);
+                    break;
                 case NimbleClientRealizeStateInit:
-                    break;
                 case NimbleClientRealizeStateReInit:
-                    break;
                 case NimbleClientRealizeStateCleared:
-                    break;
                 case NimbleClientRealizeStateDisconnected:
                     break;
             }
@@ -162,8 +161,8 @@ static int nimbleEngineClientTick(void* _self)
 }
 
 /// Initializes an nimble engine client using the setup
-/// @param self
-/// @param setup
+/// @param self nimble engine client
+/// @param setup initial values
 void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup setup)
 {
     if (!transmuteVmVersionIsEqual(&setup.predicted.version, &setup.authoritative.version)) {
@@ -199,8 +198,8 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
 }
 
 /// Asks to join the local participants to the game
-/// @param self
-/// @param options
+/// @param self nimble engine client
+/// @param options game join options
 void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientGameJoinOptions options)
 {
     NimbleSerializeGameJoinOptions joinOptions;
@@ -217,8 +216,8 @@ void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientG
 }
 
 /// Checks if a predicted input must be added this tick
-/// @param self
-/// @return
+/// @param self nimble engine client
+/// @return true if predicted input must be added
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
 {
     return self->shouldAddPredictedInput;
@@ -245,10 +244,10 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 
     uint8_t buf[120];
 
-    int octetCount = nbsStepsOutSerializeStep(&data, buf, 120);
+    ssize_t octetCount = nbsStepsOutSerializeStep(&data, buf, 120);
     if (octetCount < 0) {
         CLOG_ERROR("seerAddPredictedSteps: could not serialize")
-        return octetCount;
+        // return (int) octetCount;
     }
 
     // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
@@ -257,14 +256,14 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
     rectifyAddPredictedStep(&self->rectify, input, self->nimbleClient.client.outSteps.expectedWriteId);
 
     return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
-                         octetCount);
+                         (size_t) octetCount);
 }
 
 /// Adds predicted input to the nimble engine client.
 /// Only call this if nimbleEngineClientMustAddPredictedInput() returns true
-/// @param self
-/// @param input
-/// @return
+/// @param self nimble engine client
+/// @param input application specific transmute input
+/// @return negative on error
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
     self->shouldAddPredictedInput = false;
@@ -282,9 +281,9 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
             self->waitUntilAdjust = 30;
         }
     }
-    int optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
+    size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
     if (optimalPredictionCount)
-        for (int i = 0; i < optimalPredictionCount; ++i) {
+        for (size_t i = 0; i < optimalPredictionCount; ++i) {
             if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
                 break;
             }
@@ -300,17 +299,17 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
 }
 
 /// Update the nimble engine client
-/// @param self
+/// @param self nimble engine client
 void nimbleEngineClientUpdate(NimbleEngineClient* self)
 {
     timeTickUpdate(&self->timeTick, monotonicTimeMsNow());
 }
 
 /// Gets the current authoritative and predicted states
-/// @param self
-/// @param authoritativeState
-/// @param predictedState
-/// @return
+/// @param self nimble engine client
+/// @param authoritativeState application specific complete game state
+/// @param predictedState current predicted state
+/// @return negative error
 int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameState* authoritativeState,
                                     NimbleGameState* predictedState)
 {
@@ -324,9 +323,9 @@ int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameSt
 }
 
 /// Gets statistics about the connection and operation of the nimble engine client.
-/// @param self
-/// @param stats
-/// @return
+/// @param self nimble engine client
+/// @param[out] stats returns the client stats
+/// @return negative on error
 int nimbleEngineClientGetStats(const NimbleEngineClient* self, NimbleEngineClientStats* stats)
 {
     stats->authoritativeBufferDeltaStat = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
