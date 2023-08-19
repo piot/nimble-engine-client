@@ -2,8 +2,9 @@
  *  Copyright (c) Peter Bjorklund. All rights reserved.
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-#include "nimble-steps-serialize/out_serialize.h"
+#include <nimble-client/utils.h>
 #include <nimble-engine-client/client.h>
+#include <nimble-steps-serialize/out_serialize.h>
 
 static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
 {
@@ -69,7 +70,7 @@ static void receivedGameState(NimbleEngineClient* self)
 
     rectifyInit(&self->rectify, self->authoritative, self->predicted, rectifySetup, joinedTransmuteState,
                 joinedGameState->stepId);
-    self->waitUntilAdjust = 50;
+    self->waitUntilAdjust = 0;
 }
 
 static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* self)
@@ -80,32 +81,39 @@ static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* 
         return 1;
     }
 
-    bool hasLatencyStat = self->nimbleClient.client.latencyMsStat.avgIsSet;
-    int diffOptimalTickCount = 0;
-
-    if (hasLatencyStat) {
-        size_t averageLatency = (size_t) self->nimbleClient.client.latencyMsStat.avg;
-        size_t optimalPredictionTickCount = (averageLatency / self->authoritative.constantTickDurationMs) + 1U;
-        diffOptimalTickCount = (int) self->nimbleClient.client.outSteps.stepsCount - (int) optimalPredictionTickCount;
+    StepId outOptimalPredictionTickId;
+    bool worked = nimbleClientOptimalStepIdToSend(&self->nimbleClient.client, &outOptimalPredictionTickId);
+    if (!worked) {
+        return 1;
     }
 
-    bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
-    if (hasBufferDeltaAverage) {
-        int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
-        if (bufferDeltaAverage < 2) {
-            if (diffOptimalTickCount < 0) {
-                // CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
-                predictCount = 2;
-            } else if (diffOptimalTickCount > 3) {
-                // CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
+    int diffAheadOptimalTickCount = (int) self->nimbleClient.client.outSteps.expectedWriteId -
+                                    (int) outOptimalPredictionTickId;
+    if (diffAheadOptimalTickCount > 5) {
+        predictCount = 0U;
+    } else if (diffAheadOptimalTickCount < 0) {
+        predictCount = 2U;
+    }
+
+    /*
+        bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
+        if (hasBufferDeltaAverage) {
+            int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
+            if (bufferDeltaAverage < 2) {
+                if (diffOptimalTickCount < 0) {
+                    // CLOG_C_INFO(&self->log, "too low buffer %d. add double predict count", bufferDeltaAverage)
+                    predictCount = 2;
+                } else if (diffOptimalTickCount > 3) {
+                    // CLOG_C_INFO(&self->log, "we have gone too far %d, stopping simulation", bufferDeltaAverage)
+                    predictCount = 0;
+                }
+            }
+            if (bufferDeltaAverage > 5) {
+                // CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
                 predictCount = 0;
             }
         }
-        if (bufferDeltaAverage > 5) {
-            // CLOG_C_INFO(&self->log, "too much buffer %d. stopping simulation", bufferDeltaAverage)
-            predictCount = 0;
-        }
-    }
+    */
 
     // Check if it will fill up predicted buffer
     const size_t maximumNumberOfPredictedStepsInBuffer = 30U;
@@ -259,6 +267,34 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
                          (size_t) octetCount);
 }
 
+static void skipAheadIfNeeded(NimbleEngineClient* self)
+{
+    NimbleClient* client = &self->nimbleClient.client;
+
+    StepId outOptimalPredictionTickId;
+    bool worked = nimbleClientOptimalStepIdToSend(client, &outOptimalPredictionTickId);
+    if (!worked) {
+        return;
+    }
+
+    int numberOfTicksAhead = (int) outOptimalPredictionTickId - (int) client->outSteps.expectedWriteId;
+    const int maxStepCountToWriteToBufferOverAReasonableTime = 16; // 2 writes each tick = 8 ticks = 128 ms
+    if (numberOfTicksAhead < maxStepCountToWriteToBufferOverAReasonableTime) {
+        return;
+    }
+
+    CLOG_EXECUTE(int serverBufferDiff = self->nimbleClient.client.stepCountInIncomingBufferOnServerStat.avg;)
+
+    // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
+    StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
+    CLOG_C_NOTICE(
+        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d, from %08X to %08X",
+        serverBufferDiff, numberOfTicksAhead, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
+    nbsStepsReInit(&client->outSteps, newBaseStepId);
+    nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
+    self->waitUntilAdjust = 0;
+}
+
 /// Adds predicted input to the nimble engine client.
 /// Only call this if nimbleEngineClientMustAddPredictedInput() returns true
 /// @param self nimble engine client
@@ -268,21 +304,9 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
 {
     self->shouldAddPredictedInput = false;
 
-    bool hasBufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avgIsSet;
-    if (hasBufferDeltaAverage && self->waitUntilAdjust == 0) {
-        int bufferDeltaAverage = self->nimbleClient.client.authoritativeBufferDeltaStat.avg;
-        if (bufferDeltaAverage < -10) {
-            // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
-            StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + 10;
-            CLOG_C_NOTICE(&self->log, "SKIP AHEAD. Server says that we are %d behind, so we skip from %08X to %08X",
-                          bufferDeltaAverage, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
-            nbsStepsReInit(&self->nimbleClient.client.outSteps, newBaseStepId);
-            nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
-            self->waitUntilAdjust = 30;
-        }
-    }
+    skipAheadIfNeeded(self);
     size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
-    if (optimalPredictionCount)
+    if (optimalPredictionCount) {
         for (size_t i = 0; i < optimalPredictionCount; ++i) {
             if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
                 break;
@@ -292,6 +316,7 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
                 return err;
             }
         }
+    }
     if (optimalPredictionCount != 1) {
         self->waitUntilAdjust = 30;
     }
