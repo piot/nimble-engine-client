@@ -11,6 +11,6 @@ CMakeFiles/
 build/
 Makefile
 *.a
-*.cmake
+cmake_install.cmake
 CMakeCache.txt
 src/temp.zip
