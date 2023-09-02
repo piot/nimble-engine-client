@@ -231,6 +231,18 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
     return self->shouldAddPredictedInput;
 }
 
+static NimbleSerializeParticipantConnectState toConnectState(TransmuteParticipantInputType inputType)
+{
+    switch (inputType) {
+        case TransmuteParticipantInputTypeNormal:
+            return NimbleSerializeParticipantConnectStateNormal;
+        case TransmuteParticipantInputTypeNoInputInTime:
+            return NimbleSerializeParticipantConnectStateStepNotProvidedInTime;
+        case TransmuteParticipantInputTypeWaitingForReconnect:
+            return NimbleSerializeParticipantConnectStateStepWaitingForReconnect;
+    }
+}
+
 static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, const TransmuteInput* input)
 {
     NimbleStepsOutSerializeLocalParticipants data;
@@ -245,6 +257,7 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
         }
         data.participants[i].participantId = participantId;
         data.participants[i].payload = input->participantInputs[i].input;
+        data.participants[i].connectState = toConnectState(input->participantInputs[i].inputType);
         data.participants[i].payloadCount = input->participantInputs[i].octetSize;
     }
 
