@@ -203,6 +203,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     realizeSetup.maximumSingleParticipantStepOctetCount = setup.maximumSingleParticipantStepOctetCount;
     realizeSetup.maximumNumberOfParticipants = setup.maximumParticipantCount;
     realizeSetup.applicationVersion = setup.applicationVersion;
+    realizeSetup.wantsDebugStreams = setup.wantsDebugStream;
     realizeSetup.log = setup.log;
     self->waitUntilAdjust = 0;
     const size_t targetDeltaTimeMs = 16U;

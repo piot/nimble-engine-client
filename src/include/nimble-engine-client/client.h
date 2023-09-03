@@ -26,6 +26,7 @@ typedef struct NimbleEngineClientSetup {
     size_t maximumParticipantCount;
     NimbleSerializeVersion applicationVersion;
     size_t maxTicksFromAuthoritative;
+    bool wantsDebugStream;
     Clog log;
 } NimbleEngineClientSetup;
 
