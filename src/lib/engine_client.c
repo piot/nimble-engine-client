@@ -168,6 +168,11 @@ static int nimbleEngineClientTick(void* _self)
     return 0;
 }
 
+/*
+ NimbleSerializeVersion applicationVersion = {self->authoritative.version.major, self->authoritative.version.minor,
+                                            self->authoritative.version.patch};
+ *
+ */
 /// Initializes an nimble engine client using the setup
 /// @param self nimble engine client
 /// @param setup initial values
@@ -210,17 +215,22 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
 /// @param options game join options
 void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientGameJoinOptions options)
 {
-    NimbleSerializeGameJoinOptions joinOptions;
+    NimbleSerializeJoinGameRequest joinOptions;
 
     for (size_t i = 0; i < options.playerCount; ++i) {
         joinOptions.players[i].localIndex = options.players[i].localIndex;
     }
-    joinOptions.playerCount = options.playerCount;
 
-    NimbleSerializeVersion applicationVersion = {self->authoritative.version.major, self->authoritative.version.minor,
-                                                 self->authoritative.version.patch};
-    joinOptions.applicationVersion = applicationVersion;
+    joinOptions.playerCount = options.playerCount;
+    joinOptions.connectionSecret = options.secret;
+    joinOptions.connectionSecretIsProvided = options.useSecret;
+
     nimbleClientRealizeJoinGame(&self->nimbleClient, joinOptions);
+}
+
+void nimbleEngineClientRequestDisconnect(NimbleEngineClient* client)
+{
+    nimbleClientRealizeQuitGame(&client->nimbleClient);
 }
 
 /// Checks if a predicted input must be added this tick
@@ -243,8 +253,10 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
         if (participantId > 32) {
             CLOG_ERROR("too high participantID")
         }
+        // Predicted is always in normal. Not allowed to insert forced steps
         data.participants[i].participantId = participantId;
         data.participants[i].payload = input->participantInputs[i].input;
+        data.participants[i].connectState = NimbleSerializeParticipantConnectStateNormal;
         data.participants[i].payloadCount = input->participantInputs[i].octetSize;
     }
 
