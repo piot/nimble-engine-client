@@ -59,6 +59,8 @@ typedef struct NimbleEngineClientPlayerJoinOptions {
 typedef struct NimbleEngineClientGameJoinOptions {
     NimbleEngineClientPlayerJoinOptions players[8];
     size_t playerCount;
+    bool useSecret;
+    NimbleSerializeParticipantConnectionSecret secret;
 } NimbleEngineClientGameJoinOptions;
 
 typedef struct NimbleEngineClientStats {
@@ -68,6 +70,7 @@ typedef struct NimbleEngineClientStats {
 
 void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup setup);
 void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientGameJoinOptions options);
+void nimbleEngineClientRequestDisconnect(NimbleEngineClient* self);
 void nimbleEngineClientUpdate(NimbleEngineClient* self);
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self);
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input);
