@@ -51,6 +51,10 @@ typedef struct NimbleEngineClient {
     size_t ticksWithoutAuthoritativeSteps;
     StatsHoldPositive detectedGapInAuthoritativeSteps;
     StatsHoldPositive bigGapInAuthoritativeSteps;
+    TransmuteInput lastPredictedInput;
+    TransmuteParticipantInput lastParticipantInputs[32];
+    uint8_t* inputBuffer;
+    size_t inputBufferMaxSize;
 } NimbleEngineClient;
 
 typedef struct NimbleEngineClientPlayerJoinOptions {

@@ -2,9 +2,11 @@
  *  Copyright (c) Peter Bjorklund. All rights reserved.
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+#include <imprint/allocator.h>
 #include <nimble-client/utils.h>
 #include <nimble-engine-client/client.h>
 #include <nimble-steps-serialize/out_serialize.h>
+#include <tiny-libc/tiny_libc.h>
 
 static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
 {
@@ -129,6 +131,72 @@ static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* 
     return predictCount;
 }
 
+static void skipAheadIfNeeded(NimbleEngineClient* self)
+{
+    NimbleClient* client = &self->nimbleClient.client;
+
+    StepId outOptimalPredictionTickId;
+    bool worked = nimbleClientOptimalStepIdToSend(client, &outOptimalPredictionTickId);
+    if (!worked) {
+        return;
+    }
+
+    int numberOfTicksAhead = (int) outOptimalPredictionTickId - (int) client->outSteps.expectedWriteId;
+    const int maxStepCountToWriteToBufferOverAReasonableTime = 16; // 2 writes each tick = 8 ticks = 128 ms
+    if (numberOfTicksAhead < maxStepCountToWriteToBufferOverAReasonableTime) {
+        return;
+    }
+
+    CLOG_EXECUTE(int serverBufferDiff = self->nimbleClient.client.stepCountInIncomingBufferOnServerStat.avg;)
+
+    // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
+    StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
+    CLOG_C_NOTICE(
+        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d, from %08X to %08X",
+        serverBufferDiff, numberOfTicksAhead, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
+    nbsStepsReInit(&client->outSteps, newBaseStepId);
+    nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
+    self->waitUntilAdjust = 0;
+}
+
+static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, const TransmuteInput* input)
+{
+    NimbleStepsOutSerializeLocalParticipants data;
+
+    for (size_t i = 0; i < input->participantCount; ++i) {
+        uint8_t participantId = input->participantInputs[i].participantId;
+        if (participantId == 0) {
+            CLOG_ERROR("participantID zero is reserved")
+        }
+        if (participantId > 32) {
+            CLOG_ERROR("too high participantID")
+        }
+        // Predicted is always in normal. Not allowed to insert forced steps
+        data.participants[i].participantId = participantId;
+        data.participants[i].payload = input->participantInputs[i].input;
+        data.participants[i].connectState = NimbleSerializeParticipantConnectStateNormal;
+        data.participants[i].payloadCount = input->participantInputs[i].octetSize;
+    }
+
+    data.participantCount = input->participantCount;
+
+    uint8_t buf[120];
+
+    ssize_t octetCount = nbsStepsOutSerializeStep(&data, buf, 120);
+    if (octetCount < 0) {
+        CLOG_ERROR("seerAddPredictedSteps: could not serialize")
+        // return (int) octetCount;
+    }
+
+    // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
+    // self->rectify.predicted.predictedSteps.stepsCount, self->nimbleClient.client.outSteps.stepsCount)
+
+    rectifyAddPredictedStep(&self->rectify, input, self->nimbleClient.client.outSteps.expectedWriteId);
+
+    return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
+                         (size_t) octetCount);
+}
+
 static int nimbleEngineClientTick(void* _self)
 {
     NimbleEngineClient* self = (NimbleEngineClient*) _self;
@@ -140,8 +208,24 @@ static int nimbleEngineClientTick(void* _self)
         return false;
     }
 
+    self->shouldAddPredictedInput = true;
+
+    skipAheadIfNeeded(self);
     size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
-    self->shouldAddPredictedInput = optimalPredictionCount > 0;
+    if (optimalPredictionCount && self->lastPredictedInput.participantCount > 0) {
+        for (size_t i = 0; i < optimalPredictionCount; ++i) {
+            if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
+                break;
+            }
+            int err = nimbleEngineClientAddPredictedInputHelper(self, &self->lastPredictedInput);
+            if (err < 0) {
+                return err;
+            }
+        }
+    }
+    if (optimalPredictionCount != 1) {
+        self->waitUntilAdjust = 30;
+    }
 
     if (self->waitUntilAdjust > 0) {
         self->waitUntilAdjust--;
@@ -190,8 +274,15 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     self->log = setup.log;
     self->maximumParticipantCount = setup.maximumParticipantCount;
     self->maxTicksFromAuthoritative = setup.maxTicksFromAuthoritative;
-    self->shouldAddPredictedInput = false;
     self->ticksWithoutAuthoritativeSteps = 0;
+    self->lastPredictedInput.participantCount = 0;
+    self->shouldAddPredictedInput = true;
+
+    self->lastPredictedInput.participantInputs = self->lastParticipantInputs;
+    self->lastPredictedInput.participantCount = 0;
+
+    self->inputBufferMaxSize = self->maxStepOctetSizeForSingleParticipant * self->maximumParticipantCount;
+    self->inputBuffer = IMPRINT_ALLOC(setup.memory, self->inputBufferMaxSize, "Input Buffer");
 
     statsHoldPositiveInit(&self->detectedGapInAuthoritativeSteps, 20U);
     statsHoldPositiveInit(&self->bigGapInAuthoritativeSteps, 20U);
@@ -242,72 +333,6 @@ bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self)
     return self->shouldAddPredictedInput;
 }
 
-static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, const TransmuteInput* input)
-{
-    NimbleStepsOutSerializeLocalParticipants data;
-
-    for (size_t i = 0; i < input->participantCount; ++i) {
-        uint8_t participantId = input->participantInputs[i].participantId;
-        if (participantId == 0) {
-            CLOG_ERROR("participantID zero is reserved")
-        }
-        if (participantId > 32) {
-            CLOG_ERROR("too high participantID")
-        }
-        // Predicted is always in normal. Not allowed to insert forced steps
-        data.participants[i].participantId = participantId;
-        data.participants[i].payload = input->participantInputs[i].input;
-        data.participants[i].connectState = NimbleSerializeParticipantConnectStateNormal;
-        data.participants[i].payloadCount = input->participantInputs[i].octetSize;
-    }
-
-    data.participantCount = input->participantCount;
-
-    uint8_t buf[120];
-
-    ssize_t octetCount = nbsStepsOutSerializeStep(&data, buf, 120);
-    if (octetCount < 0) {
-        CLOG_ERROR("seerAddPredictedSteps: could not serialize")
-        // return (int) octetCount;
-    }
-
-    // CLOG_C_VERBOSE(&self->log, "PredictedCount: %zu outStepCount: %zu",
-    // self->rectify.predicted.predictedSteps.stepsCount, self->nimbleClient.client.outSteps.stepsCount)
-
-    rectifyAddPredictedStep(&self->rectify, input, self->nimbleClient.client.outSteps.expectedWriteId);
-
-    return nbsStepsWrite(&self->nimbleClient.client.outSteps, self->nimbleClient.client.outSteps.expectedWriteId, buf,
-                         (size_t) octetCount);
-}
-
-static void skipAheadIfNeeded(NimbleEngineClient* self)
-{
-    NimbleClient* client = &self->nimbleClient.client;
-
-    StepId outOptimalPredictionTickId;
-    bool worked = nimbleClientOptimalStepIdToSend(client, &outOptimalPredictionTickId);
-    if (!worked) {
-        return;
-    }
-
-    int numberOfTicksAhead = (int) outOptimalPredictionTickId - (int) client->outSteps.expectedWriteId;
-    const int maxStepCountToWriteToBufferOverAReasonableTime = 16; // 2 writes each tick = 8 ticks = 128 ms
-    if (numberOfTicksAhead < maxStepCountToWriteToBufferOverAReasonableTime) {
-        return;
-    }
-
-    CLOG_EXECUTE(int serverBufferDiff = self->nimbleClient.client.stepCountInIncomingBufferOnServerStat.avg;)
-
-    // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
-    StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
-    CLOG_C_NOTICE(
-        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d, from %08X to %08X",
-        serverBufferDiff, numberOfTicksAhead, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
-    nbsStepsReInit(&client->outSteps, newBaseStepId);
-    nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
-    self->waitUntilAdjust = 0;
-}
-
 /// Adds predicted input to the nimble engine client.
 /// Only call this if nimbleEngineClientMustAddPredictedInput() returns true
 /// @param self nimble engine client
@@ -315,24 +340,17 @@ static void skipAheadIfNeeded(NimbleEngineClient* self)
 /// @return negative on error
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input)
 {
-    self->shouldAddPredictedInput = false;
+    uint8_t* p = self->inputBuffer;
 
-    skipAheadIfNeeded(self);
-    size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
-    if (optimalPredictionCount) {
-        for (size_t i = 0; i < optimalPredictionCount; ++i) {
-            if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
-                break;
-            }
-            int err = nimbleEngineClientAddPredictedInputHelper(self, input);
-            if (err < 0) {
-                return err;
-            }
-        }
+    for (size_t i = 0; i < input->participantCount; ++i) {
+        self->lastPredictedInput.participantInputs[i] = input->participantInputs[i];
+
+        tc_memcpy_octets(p, input->participantInputs[i].input, input->participantInputs[i].octetSize);
+        self->lastPredictedInput.participantInputs[i].input = p;
+        p += input->participantInputs[i].octetSize;
     }
-    if (optimalPredictionCount != 1) {
-        self->waitUntilAdjust = 30;
-    }
+    self->lastPredictedInput.participantCount = input->participantCount;
+
     return 0;
 }
 
