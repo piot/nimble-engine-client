@@ -344,7 +344,7 @@ int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const Transmut
 
     for (size_t i = 0; i < input->participantCount; ++i) {
         self->lastPredictedInput.participantInputs[i] = input->participantInputs[i];
-
+        self->lastPredictedInput.participantInputs[i].inputType = TransmuteParticipantInputTypeNormal;
         tc_memcpy_octets(p, input->participantInputs[i].input, input->participantInputs[i].octetSize);
         self->lastPredictedInput.participantInputs[i].input = p;
         p += input->participantInputs[i].octetSize;
