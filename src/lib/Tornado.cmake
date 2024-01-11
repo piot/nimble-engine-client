@@ -67,9 +67,8 @@ function(set_tornado targetName)
                                           # clang-16
               -Wno-declaration-after-statement # bug in clang, should be legal
                                                # for std c99
-              -Wno-disabled-macro-expansion # bug in emscripten compiler?
-              -Wno-poison-system-directories # might be bug in emscripten
-                                             # compiler?
+              -Wno-switch-enum # if there is a explicit default case, then it
+              # should not be reported as an error
               ${sanitizers})
   elseif(COMPILER_GCC)
     target_compile_options(
@@ -94,6 +93,19 @@ function(set_tornado targetName)
     )
   else()
     target_compile_options(${targetName} PRIVATE -Wall)
+  endif()
+
+  if(EMSCRIPTEN)
+    message("Emscripten detected!")
+    target_compile_options(
+      ${targetName}
+      PRIVATE -Wno-switch-default # emscripten is probably using an old compiler
+                                  # version, even if all values are covered in a
+                                  # switch, it still complains
+              -Wno-disabled-macro-expansion # bug in emscripten compiler?
+              -Wno-poison-system-directories # might be bug in emscripten
+                                             # compiler?
+    )
   endif()
 
   if(NOT isDebug)

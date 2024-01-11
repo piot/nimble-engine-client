@@ -26,15 +26,13 @@ jobs:
 
       - name: deps fetch dependencies
         run:
-          go run github.com/piot/deps/src/deps@main fetch -m clone -t src/deps
+          go run github.com/piot/deps/src/deps@main fetch
 
       - name: create cmake cache
         run: cmake -DCMAKE_BUILD_TYPE=Debug .
-        working-directory: src/
 
       - name: build
         run: cmake --build . --clean-first -- VERBOSE=1
-        working-directory: src/
 
       - uses: actions/upload-artifact@v2
         with:
