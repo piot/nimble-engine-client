@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(nimble-engine-client C)
+enable_testing()
 
 add_subdirectory(deps/piot/assent-c/src/lib)
 add_subdirectory(deps/piot/bit-array/src/lib)

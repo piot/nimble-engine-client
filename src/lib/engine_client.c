@@ -70,7 +70,7 @@ static void receivedGameState(NimbleEngineClient* self)
     CLOG_C_DEBUG(&self->log, "Joined game state. octetCount: %zu step %08X", joinedGameState->gameStateOctetCount,
                  joinedGameState->stepId)
 
-    rectifyInit(&self->rectify, self->authoritative, self->predicted, rectifySetup, joinedTransmuteState,
+    rectifyInit(&self->rectify, self->rectifyCallbackObject, rectifySetup, joinedTransmuteState,
                 joinedGameState->stepId);
     self->waitUntilAdjust = 0;
 }
@@ -262,14 +262,14 @@ static int nimbleEngineClientTick(void* _self)
 /// @param setup initial values
 void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup setup)
 {
+    /*
     if (!transmuteVmVersionIsEqual(&setup.predicted.version, &setup.authoritative.version)) {
         CLOG_C_ERROR(&setup.log, "not same transmuteVmVersion %d.%d.%d", setup.predicted.version.major,
                      setup.predicted.version.minor, setup.predicted.version.patch)
     }
+    */
 
     self->phase = NimbleEngineClientPhaseWaitingForInitialGameState;
-    self->authoritative = setup.authoritative;
-    self->predicted = setup.predicted;
     self->maxStepOctetSizeForSingleParticipant = setup.maximumSingleParticipantStepOctetCount;
     self->log = setup.log;
     self->maximumParticipantCount = setup.maximumParticipantCount;
@@ -361,22 +361,6 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
     timeTickUpdate(&self->timeTick, monotonicTimeMsNow());
 }
 
-/// Gets the current authoritative and predicted states
-/// @param self nimble engine client
-/// @param authoritativeState application specific complete game state
-/// @param predictedState current predicted state
-/// @return negative error
-int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameState* authoritativeState,
-                                    NimbleGameState* predictedState)
-{
-    authoritativeState->state = transmuteVmGetState(&self->rectify.authoritative.transmuteVm);
-    authoritativeState->tickId = self->rectify.authoritative.stepId;
-
-    predictedState->state = transmuteVmGetState(&self->rectify.predicted.transmuteVm);
-    predictedState->tickId = self->rectify.predicted.stepId;
-
-    return 0;
-}
 
 /// Gets statistics about the connection and operation of the nimble engine client.
 /// @param self nimble engine client

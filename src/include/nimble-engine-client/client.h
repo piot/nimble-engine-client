@@ -7,9 +7,9 @@
 
 #include <nimble-client/network_realizer.h>
 #include <rectify/rectify.h>
-#include <transmute/transmute.h>
-#include <time-tick/time_tick.h>
 #include <stats/hold_positive.h>
+#include <time-tick/time_tick.h>
+#include <transmute/transmute.h>
 
 typedef struct NimbleGameState {
     TransmuteState state;
@@ -18,10 +18,9 @@ typedef struct NimbleGameState {
 
 typedef struct NimbleEngineClientSetup {
     DatagramTransport transport;
+    RectifyCallbackObject rectifyCallbackObject;
     struct ImprintAllocator* memory;
     struct ImprintAllocatorWithFree* blobMemory;
-    TransmuteVm authoritative;
-    TransmuteVm predicted;
     size_t maximumSingleParticipantStepOctetCount;
     size_t maximumParticipantCount;
     NimbleSerializeVersion applicationVersion;
@@ -37,10 +36,9 @@ typedef enum NimbleEngineClientPhase {
 
 typedef struct NimbleEngineClient {
     Rectify rectify;
+    RectifyCallbackObject rectifyCallbackObject;
     NimbleClientRealize nimbleClient;
     NimbleEngineClientPhase phase;
-    TransmuteVm authoritative;
-    TransmuteVm predicted;
     size_t maxStepOctetSizeForSingleParticipant;
     size_t maximumParticipantCount;
     size_t maxTicksFromAuthoritative;
@@ -79,9 +77,6 @@ void nimbleEngineClientRequestDisconnect(NimbleEngineClient* self);
 void nimbleEngineClientUpdate(NimbleEngineClient* self);
 bool nimbleEngineClientMustAddPredictedInput(const NimbleEngineClient* self);
 int nimbleEngineClientAddPredictedInput(NimbleEngineClient* self, const TransmuteInput* input);
-
-int nimbleEngineClientGetGameStates(const NimbleEngineClient* self, NimbleGameState* authoritativeState,
-                                    NimbleGameState* predictedState);
 int nimbleEngineClientGetStats(const NimbleEngineClient* self, NimbleEngineClientStats* stats);
 
 #endif
