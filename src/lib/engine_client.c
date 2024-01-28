@@ -38,7 +38,9 @@ static void tickIncomingAuthoritativeSteps(NimbleEngineClient* self)
         self->ticksWithoutAuthoritativeSteps++;
     }
 
-    CLOG_C_VERBOSE(&self->log, "added %zu authoritative steps in one tick", addedStepCount)
+    if (addedStepCount > 0) {
+        CLOG_C_VERBOSE(&self->log, "added %zu authoritative steps in one tick", addedStepCount)
+    }
 
     bool hasGapInAuthoritativeSteps = self->ticksWithoutAuthoritativeSteps >= 2;
     statsHoldPositiveAdd(&self->detectedGapInAuthoritativeSteps, hasGapInAuthoritativeSteps);
@@ -283,6 +285,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
 
     self->inputBufferMaxSize = self->maxStepOctetSizeForSingleParticipant * self->maximumParticipantCount;
     self->inputBuffer = IMPRINT_ALLOC(setup.memory, self->inputBufferMaxSize, "Input Buffer");
+    self->rectifyCallbackObject = setup.rectifyCallbackObject;
 
     statsHoldPositiveInit(&self->detectedGapInAuthoritativeSteps, 20U);
     statsHoldPositiveInit(&self->bigGapInAuthoritativeSteps, 20U);
@@ -360,7 +363,6 @@ void nimbleEngineClientUpdate(NimbleEngineClient* self)
 {
     timeTickUpdate(&self->timeTick, monotonicTimeMsNow());
 }
-
 
 /// Gets statistics about the connection and operation of the nimble engine client.
 /// @param self nimble engine client

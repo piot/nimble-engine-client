@@ -16,3 +16,4 @@ CMakeCache.txt
 src/temp.zip
 install_manifest.txt
 src/lib/CTestTestfile.cmake
+CTestTestfile.cmake
