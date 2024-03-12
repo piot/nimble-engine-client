@@ -86,7 +86,8 @@ static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* 
     }
 
     StepId outOptimalPredictionTickId;
-    bool worked = nimbleClientOptimalStepIdToSend(&self->nimbleClient.client, &outOptimalPredictionTickId);
+    size_t outDiffCount;
+    bool worked = nimbleClientOptimalStepIdToSend(&self->nimbleClient.client, &outOptimalPredictionTickId, &outDiffCount);
     if (!worked) {
         return 1;
     }
@@ -138,7 +139,8 @@ static void skipAheadIfNeeded(NimbleEngineClient* self)
     NimbleClient* client = &self->nimbleClient.client;
 
     StepId outOptimalPredictionTickId;
-    bool worked = nimbleClientOptimalStepIdToSend(client, &outOptimalPredictionTickId);
+    size_t outDiffCount;
+    bool worked = nimbleClientOptimalStepIdToSend(client, &outOptimalPredictionTickId, &outDiffCount);
     if (!worked) {
         return;
     }
@@ -154,8 +156,8 @@ static void skipAheadIfNeeded(NimbleEngineClient* self)
     // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
     StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
     CLOG_C_NOTICE(
-        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d, from %08X to %08X",
-        serverBufferDiff, numberOfTicksAhead, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
+        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d (%zu), from %08X to %08X",
+        serverBufferDiff, numberOfTicksAhead, outDiffCount, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
     nbsStepsReInit(&client->outSteps, newBaseStepId);
     nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
     self->waitUntilAdjust = 0;
