@@ -87,7 +87,8 @@ static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* 
 
     StepId outOptimalPredictionTickId;
     size_t outDiffCount;
-    bool worked = nimbleClientOptimalStepIdToSend(&self->nimbleClient.client, &outOptimalPredictionTickId, &outDiffCount);
+    bool worked = nimbleClientOptimalStepIdToSend(&self->nimbleClient.client, &outOptimalPredictionTickId,
+                                                  &outDiffCount);
     if (!worked) {
         return 1;
     }
@@ -151,13 +152,14 @@ static void skipAheadIfNeeded(NimbleEngineClient* self)
         return;
     }
 
-    CLOG_EXECUTE(int serverBufferDiff = self->nimbleClient.client.stepCountInIncomingBufferOnServerStat.avg;)
+    CLOG_EXECUTE(int serverBufferDiff = client->stepCountInIncomingBufferOnServerStat.avg;)
 
     // We are too much behind, just skip ahead the outgoing step buffer, so there is less to predict
-    StepId newBaseStepId = self->nimbleClient.client.outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
+    StepId newBaseStepId = client->outSteps.expectedWriteId + (StepId) numberOfTicksAhead;
     CLOG_C_NOTICE(
-        &self->log, "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d (%zu), from %08X to %08X",
-        serverBufferDiff, numberOfTicksAhead, outDiffCount, self->nimbleClient.client.outSteps.expectedWriteId, newBaseStepId)
+        &self->log,
+        "SKIP AHEAD. Server says that we are %d behind. Client estimated skip ahead %d (%zu), from %08X to %08X",
+        serverBufferDiff, numberOfTicksAhead, outDiffCount, client->outSteps.expectedWriteId, newBaseStepId)
     nbsStepsReInit(&client->outSteps, newBaseStepId);
     nbsStepsReInit(&self->rectify.predicted.predictedSteps, newBaseStepId);
     self->waitUntilAdjust = 0;
@@ -206,29 +208,33 @@ static int nimbleEngineClientTick(void* _self)
     NimbleEngineClient* self = (NimbleEngineClient*) _self;
     nimbleClientRealizeUpdate(&self->nimbleClient, monotonicTimeMsNow());
 
-    bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
-    if (!allowedToAdd) {
-        CLOG_C_WARN(&self->log, "was not allowed to add steps")
-        return false;
-    }
+    const NimbleClient* client = &self->nimbleClient.client;
 
-    self->shouldAddPredictedInput = true;
+    if (client->outSteps.isInitialized && client->authoritativeStepsFromServer.isInitialized) {
+        bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
+        if (!allowedToAdd) {
+            CLOG_C_WARN(&self->log, "was not allowed to add steps")
+            return false;
+        }
 
-    skipAheadIfNeeded(self);
-    size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
-    if (optimalPredictionCount && self->lastPredictedInput.participantCount > 0) {
-        for (size_t i = 0; i < optimalPredictionCount; ++i) {
-            if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
-                break;
-            }
-            int err = nimbleEngineClientAddPredictedInputHelper(self, &self->lastPredictedInput);
-            if (err < 0) {
-                return err;
+        self->shouldAddPredictedInput = true;
+
+        skipAheadIfNeeded(self);
+        size_t optimalPredictionCount = calculateOptimalPredictionCountThisTick(self);
+        if (optimalPredictionCount && self->lastPredictedInput.participantCount > 0) {
+            for (size_t i = 0; i < optimalPredictionCount; ++i) {
+                if (self->rectify.predicted.predictedSteps.stepsCount >= 40U) {
+                    break;
+                }
+                int err = nimbleEngineClientAddPredictedInputHelper(self, &self->lastPredictedInput);
+                if (err < 0) {
+                    return err;
+                }
             }
         }
-    }
-    if (optimalPredictionCount != 1) {
-        self->waitUntilAdjust = 30;
+        if (optimalPredictionCount != 1) {
+            self->waitUntilAdjust = 30;
+        }
     }
 
     if (self->waitUntilAdjust > 0) {
