@@ -81,9 +81,9 @@ static size_t calculateOptimalPredictionCountThisTick(const NimbleEngineClient* 
 {
     size_t predictCount = 1U;
 
-    if (self->waitUntilAdjust > 0) {
-        return 1;
-    }
+    //if (self->waitUntilAdjust > 0) {
+        //return 1;
+   // }
 
     StepId outOptimalPredictionTickId;
     size_t outDiffCount;
@@ -233,7 +233,7 @@ static int nimbleEngineClientTick(void* _self)
             }
         }
         if (optimalPredictionCount != 1) {
-            self->waitUntilAdjust = 30;
+         //   self->waitUntilAdjust = 30;
         }
     }
 
