@@ -1,7 +1,7 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Peter Bjorklund. All rights reserved.
+/*----------------------------------------------------------------------------------------------------------
+ *  Copyright (c) Peter Bjorklund. All rights reserved. https://github.com/piot/nimble-engine-client
  *  Licensed under the MIT License. See LICENSE in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+ *--------------------------------------------------------------------------------------------------------*/
 #include <imprint/allocator.h>
 #include <nimble-client/utils.h>
 #include <nimble-engine-client/client.h>
