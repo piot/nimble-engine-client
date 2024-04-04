@@ -64,7 +64,7 @@ typedef struct NimbleEngineClientGameJoinOptions {
     size_t playerCount;
     NimbleSerializeJoinGameType type;
     NimbleSerializeParticipantConnectionSecret secret;
-    uint32_t participantId;
+    NimbleSerializeParticipantId participantId;
 } NimbleEngineClientGameJoinOptions;
 
 typedef struct NimbleEngineClientStats {
