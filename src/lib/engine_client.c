@@ -171,11 +171,8 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 
     for (size_t i = 0; i < input->participantCount; ++i) {
         uint8_t participantId = input->participantInputs[i].participantId;
-        if (participantId == 0) {
-            CLOG_ERROR("participantID zero is reserved")
-        }
-        if (participantId > 32) {
-            CLOG_ERROR("too high participantID")
+        if (participantId > 64) {
+            CLOG_ERROR("too high participantID %hhu", participantId)
         }
         // Predicted is always in normal. Not allowed to insert forced steps
         data.participants[i].participantId = participantId;
