@@ -322,9 +322,9 @@ void nimbleEngineClientRequestJoin(NimbleEngineClient* self, NimbleEngineClientG
     }
 
     joinOptions.playerCount = options.playerCount;
-    joinOptions.connectionSecret = options.secret;
-    joinOptions.participantId = options.participantId;
+    joinOptions.partyAndSessionSecret = options.partyAndSessionSecret;
     joinOptions.joinGameType = options.type;
+    // TODO: joinOptions.nonce
 
     nimbleClientRealizeJoinGame(&self->nimbleClient, joinOptions);
 }
