@@ -177,7 +177,7 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
         // Predicted is always in normal. Not allowed to insert forced steps
         data.participants[i].participantId = participantId;
         data.participants[i].payload = input->participantInputs[i].input;
-        data.participants[i].connectState = NimbleSerializeStepTypeNormal;
+        data.participants[i].stepType = NimbleSerializeStepTypeNormal;
         data.participants[i].payloadCount = input->participantInputs[i].octetSize;
     }
 
