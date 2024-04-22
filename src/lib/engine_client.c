@@ -185,7 +185,7 @@ static int nimbleEngineClientAddPredictedInputHelper(NimbleEngineClient* self, c
 
     uint8_t buf[120];
 
-    ssize_t octetCount = nbsStepsOutSerializeStep(&data, buf, 120);
+    ssize_t octetCount = nbsStepsOutSerializeCombinedStep(&data, buf, 120);
     if (octetCount < 0) {
         CLOG_ERROR("seerAddPredictedSteps: could not serialize")
         // return (int) octetCount;
@@ -210,7 +210,7 @@ static int nimbleEngineClientTick(void* _self)
     if (client->outSteps.isInitialized && client->authoritativeStepsFromServer.isInitialized) {
         bool allowedToAdd = nbsStepsAllowedToAdd(&self->nimbleClient.client.outSteps);
         if (!allowedToAdd) {
-            CLOG_C_WARN(&self->log, "was not allowed to add steps")
+            CLOG_C_WARN(&self->log, "out steps is full, not allowed to add steps %zu", self->nimbleClient.client.outSteps.stepsCount)
             return false;
         }
 
