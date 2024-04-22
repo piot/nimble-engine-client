@@ -27,6 +27,7 @@ typedef struct NimbleEngineClientSetup {
     size_t maxTicksFromAuthoritative;
     bool wantsDebugStream;
     Clog log;
+    bool useTimeTickQualityChecks;
 } NimbleEngineClientSetup;
 
 typedef enum NimbleEngineClientPhase {

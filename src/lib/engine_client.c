@@ -307,6 +307,7 @@ void nimbleEngineClientInit(NimbleEngineClient* self, NimbleEngineClientSetup se
     self->waitUntilAdjust = 0;
     const size_t targetDeltaTimeMs = 16U;
     timeTickInit(&self->timeTick, targetDeltaTimeMs, self, nimbleEngineClientTick, monotonicTimeMsNow(), self->log);
+    timeTickSetQualityCheckEnabled(&self->timeTick, setup.useTimeTickQualityChecks);
     nimbleClientRealizeInit(&self->nimbleClient, &realizeSetup);
 }
 
