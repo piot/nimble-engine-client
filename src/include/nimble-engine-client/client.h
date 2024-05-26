@@ -27,6 +27,7 @@ typedef struct NimbleEngineClientSetup {
     size_t maxTicksFromAuthoritative;
     bool wantsDebugStream;
     Clog log;
+    bool useTimeTickQualityChecks;
 } NimbleEngineClientSetup;
 
 typedef enum NimbleEngineClientPhase {
@@ -63,7 +64,7 @@ typedef struct NimbleEngineClientGameJoinOptions {
     NimbleEngineClientPlayerJoinOptions players[8];
     size_t playerCount;
     NimbleSerializeJoinGameType type;
-    NimbleSerializeParticipantConnectionSecret secret;
+    NimbleSerializePartyAndSessionSecret partyAndSessionSecret;
     NimbleSerializeParticipantId participantId;
 } NimbleEngineClientGameJoinOptions;
 
